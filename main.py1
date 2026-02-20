@@ -1,0 +1,56 @@
+import flet as ft
+import pandas as pd
+import math
+
+# Lógica de cálculo (permanece a mesma)
+def calcular_distancia(lat1, lon1, lat2, lon2):
+    # ... (mesma fórmula de Haversine que você já usa)
+    pass
+
+def main(page: ft.Page):
+    page.title = "Top Radar - Vendas"
+    page.theme_mode = ft.ThemeMode.LIGHT
+    
+    # Barra Superior (AppBar)
+    page.appbar = ft.AppBar(
+        title=ft.Text("📡 Radar de Clientes"),
+        bgcolor=ft.colors.RED_ACCENT,
+        color=ft.colors.WHITE,
+    )
+
+    # Lista onde os clientes vão aparecer
+    lista_clientes = ft.ListView(expand=1, spacing=10, padding=20)
+
+    # Simulação de carregamento de dados
+    def carregar_clientes(e):
+        lista_clientes.controls.clear()
+        # Aqui você leria seu 'Cliente Fixa sem Móvel - Pontos.csv'
+        # Exemplo de como montar o card para o vendedor:
+        lista_clientes.controls.append(
+            ft.Card(
+                content=ft.Container(
+                    padding=15,
+                    content=ft.Column([
+                        ft.ListTile(
+                            leading=ft.Icon(ft.icons.SHOPPING_BAG, color="green"),
+                            title=ft.Text("LOJA DO FRANCISCO", weight="bold"),
+                            subtitle=ft.Text("Distância: 1.2 km - Oferta: Fixa + Móvel"),
+                        ),
+                        ft.Row([
+                            ft.TextButton("📍 Ver no Mapa", icon=ft.icons.MAP),
+                            ft.ElevatedButton("📝 Vender", icon=ft.icons.ADD_SHOPPING_CART, bgcolor="green", color="white"),
+                        ], alignment=ft.MainAxisAlignment.END)
+                    ])
+                )
+            )
+        )
+        page.update()
+
+    # Botão flutuante para atualizar posição
+    page.floating_action_button = ft.FloatingActionButton(
+        icon=ft.icons.MY_LOCATION, on_click=carregar_clientes, bgcolor="red"
+    )
+
+    page.add(lista_clientes)
+
+ft.app(target=main)
