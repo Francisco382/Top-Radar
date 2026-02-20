@@ -1,0 +1,27 @@
+name: Build APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Flet and Dependencies
+        run: |
+          pip install flet
+          # Se o seu arquivo de requisitos estiver como requirements.bak, renomeie de volta
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          
+      - name: Build APK
+        run: flet build apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: build/apk/*.apk

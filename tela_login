@@ -1,0 +1,12 @@
+if st.button("ACESSAR SISTEMA"):
+    user = autenticar_usuario(email, senha)
+
+    if user:
+        st.session_state.logado = True
+        st.session_state.user = user["email"]
+        st.session_state.perfil = user["perfil"]
+        st.session_state.nome = user["nome"]
+        st.session_state.tela = "Consulta"
+        st.rerun()
+    else:
+        st.error("❌ E-mail ou senha inválidos")
