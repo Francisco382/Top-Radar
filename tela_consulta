@@ -1,0 +1,198 @@
+import streamlit as st
+import pandas as pd
+import os
+import plotly.express as px
+from datetime import datetime
+import io
+
+# --- 1. CONFIGURAÇÃO VISUAL ---
+st.set_page_config(page_title="Analytics Radar", page_icon="📡", layout="centered", initial_sidebar_state="collapsed")
+
+st.markdown("""
+    <style>
+    .stApp, .main, .block-container { background-color: #000000 !important; }
+    h1, h2, h3, h4, p, span, label, .stMarkdown, div[data-testid="stMetricValue"] { color: #ffffff !important; }
+    div.stButton > button[kind="primary"] {
+        width: 100%; background-color: #ee2924 !important; color: white !important;
+        border-radius: 25px; height: 3.5em; font-weight: bold; border: none;
+    }
+    div.stButton > button[kind="secondary"] {
+        width: 100%; border: 1px solid #555 !important; color: white !important;
+        border-radius: 25px; height: 3.5em; background-color: transparent !important;
+    }
+    .stTextInput>div>div>input {
+        background-color: #1a1a1a !important; color: white !important; border: 1px solid #333 !important;
+    }
+    [data-testid="stExpander"] { background-color: #111111 !important; border: 1px solid #333 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. BANCO DE DADOS E FUNÇÕES ---
+ARQUIVO_USUARIOS = 'usuarios.xlsx'
+
+def init_usuarios():
+    if not os.path.exists(ARQUIVO_USUARIOS):
+        df = pd.DataFrame([{"nome": "Admin", "email": "adm@claro.com.br", "senha": "123456", "perfil": "admin"}])
+        df['senha'] = df['senha'].astype(str)
+        df.to_excel(ARQUIVO_USUARIOS, index=False)
+
+def autenticar_usuario(email, senha):
+    init_usuarios()
+    try:
+        df = pd.read_excel(ARQUIVO_USUARIOS, dtype={'senha': str})
+        df.columns = df.columns.str.strip().str.lower()
+        user = df[(df['email'] == email) & (df['senha'] == str(senha))]
+        if not user.empty: return user.iloc[0].to_dict()
+    except: pass
+    return None
+
+def registrar_usuario(nome, email, senha):
+    init_usuarios()
+    df = pd.read_excel(ARQUIVO_USUARIOS, dtype={'senha': str})
+    if email in df['email'].values: return False
+    novo = pd.DataFrame([{"nome": nome, "email": email, "senha": str(senha), "perfil": "vendedor"}])
+    df = pd.concat([df, novo], ignore_index=True)
+    df.to_excel(ARQUIVO_USUARIOS, index=False)
+    return True
+
+def carregar_carteira():
+    if os.path.exists('carteira.xlsx'):
+        try: 
+            df = pd.read_excel('carteira.xlsx').fillna('')
+            df.columns = df.columns.str.strip().str.lower()
+            return df
+        except: return pd.DataFrame()
+    return pd.DataFrame()
+
+def salvar_venda(dados):
+    arquivo = 'vendas.csv'
+    df = pd.DataFrame([dados])
+    df.to_csv(arquivo, mode='a', index=False, header=not os.path.exists(arquivo), encoding='utf-8-sig')
+
+# --- 3. COMPONENTES DE TELA ---
+def cabecalho_logo():
+    c1, c2, c3 = st.columns([1, 1, 1]) 
+    with c2:
+        if os.path.exists("logoanalytics.png"): st.image("logoanalytics.png", width=180)
+    st.markdown("<h2 style='text-align:center; margin-top: -30px;'>Analytics Radar</h2>", unsafe_allow_html=True)
+
+def tela_login():
+    cabecalho_logo()
+    email = st.text_input("E-mail", key="login_email")
+    senha = st.text_input("Senha", type="password", key="login_senha")
+    if st.button("ENTRAR", type="primary"):
+        user = autenticar_usuario(email, senha)
+        if user:
+            st.session_state.logado = True
+            st.session_state.user = user.get('email')
+            st.session_state.nome = user.get('nome')
+            st.session_state.tela = "Consulta"
+            st.rerun()
+        else: st.error("❌ Dados incorretos.")
+    
+    st.divider()
+    c1, c2 = st.columns(2)
+    if c1.button("📝 CRIAR CONTA"): st.session_state.tela = "Cadastro"; st.rerun()
+    if c2.button("🔑 SENHA"): st.info("Contate o administrador.")
+
+def tela_cadastro():
+    cabecalho_logo()
+    st.subheader("Novo Cadastro")
+    nome = st.text_input("Nome")
+    email = st.text_input("E-mail")
+    senha = st.text_input("Senha", type="password")
+    if st.button("CADASTRAR", type="primary"):
+        if registrar_usuario(nome, email, senha):
+            st.success("✅ Sucesso!")
+            st.session_state.tela = "Login"; st.rerun()
+    if st.button("VOLTAR"): st.session_state.tela = "Login"; st.rerun()
+
+def tela_consulta():
+    st.title("📍 Radar de Vendas")
+    st.subheader(f"Olá, {st.session_state.nome}!")
+    
+    busca = st.text_input("🔍 Buscar Rua, CEP ou Cliente:")
+    df = carregar_carteira()
+    
+    if not df.empty:
+        if busca:
+            mask = df['rua'].astype(str).str.contains(busca, case=False)
+            df = df[mask]
+        
+        if 'lat' in df.columns:
+            st.map(df, latitude='lat', longitude='lon', size=20, color='#ee2924')
+            
+        st.write(f"**{len(df)}** oportunidades encontradas")
+        for i, row in df.iterrows():
+            with st.expander(f"🏠 {row['rua']}"):
+                col1, col2 = st.columns([2, 1])
+                col1.write(f"🌐 **Net:** {'✅' if row.get('bl') else '❌'}")
+                col1.write(f"📱 **Cel:** {'✅' if row.get('mov') else '❌'}")
+                if col2.button("📝 TABULAR", key=f"btn_{i}", type="primary"):
+                    st.session_state.endereco_foco = row['rua']
+                    st.session_state.tela = "Tabulacao"; st.rerun()
+    else:
+        st.warning("⚠️ Planilha 'carteira.xlsx' não encontrada.")
+
+def tela_tabulacao():
+    st.subheader(f"📝 Tabulação: {st.session_state.endereco_foco}")
+    res = st.radio("Resultado da Visita", ["Venda", "Não Venda", "Agendamento"], horizontal=True)
+    st.divider()
+
+    dados_tab = {
+        "data_registro": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "vendedor": st.session_state.user,
+        "local": st.session_state.endereco_foco,
+        "resultado": res
+    }
+
+    if res == "Venda":
+        produto = st.selectbox("Selecione produto vendido", ["Dados", "Dados + Voz", "Dados + Voz + TV"])
+        doc = st.text_input("Informe o CNPJ ou CPF")
+        data_v = st.date_input("Informe a Data da Venda")
+        dados_tab.update({"detalhe": produto, "documento": doc, "data_evento": str(data_v)})
+
+    elif res == "Não Venda":
+        motivo = st.selectbox("Selecione o Motivo", ["Cliente não possui interesse", "Casa Vazia", "Fidelizado concorrência", "Outros"])
+        if motivo == "Outros": motivo = st.text_area("Descreva o Motivo")
+        dados_tab.update({"detalhe": motivo})
+
+    elif res == "Agendamento":
+        dt_a = st.date_input("Data do Agendamento", min_value=datetime.now())
+        hr_a = st.time_input("Horário do Agendamento")
+        loc_a = st.text_input("Local da Visita", value=st.session_state.endereco_foco)
+        st.info("🔔 Agendamento será salvo no histórico.")
+        dados_tab.update({"data_evento": str(dt_a), "detalhe": str(hr_a), "local_especifico": loc_a})
+
+    if st.button("SALVAR TABULAÇÃO", type="primary"):
+        salvar_venda(dados_tab)
+        st.success("✅ Salvo!")
+        st.session_state.tela = "Consulta"
+        st.rerun()
+    if st.button("CANCELAR"): st.session_state.tela = "Consulta"; st.rerun()
+
+def tela_relatorios():
+    st.title("📊 Histórico de Visitas")
+    if os.path.exists('vendas.csv'):
+        df = pd.read_csv('vendas.csv')
+        st.dataframe(df.iloc[::-1], use_container_width=True)
+        fig = px.pie(df, names='resultado', color_discrete_sequence=['#ee2924', '#ffffff'])
+        st.plotly_chart(fig)
+    else: st.info("Sem registros ainda.")
+
+# --- 4. EXECUÇÃO PRINCIPAL ---
+if 'logado' not in st.session_state: st.session_state.logado = False
+if 'tela' not in st.session_state: st.session_state.tela = "Login"
+
+if not st.session_state.logado:
+    if st.session_state.tela == "Cadastro": tela_cadastro()
+    else: tela_login()
+else:
+    with st.sidebar:
+        st.subheader("📡 Radar")
+        menu = st.radio("Menu", ["Radar", "Relatórios"])
+        if st.button("SAIR"): st.session_state.logado = False; st.rerun()
+    
+    if st.session_state.tela == "Tabulacao": tela_tabulacao()
+    elif menu == "Relatórios": tela_relatorios()
+    else: tela_consulta()

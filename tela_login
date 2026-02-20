@@ -1,12 +1,50 @@
-if st.button("ACESSAR SISTEMA"):
-    user = autenticar_usuario(email, senha)
+def tela_login():
+    # Centraliza o conteúdo verticalmente e adiciona a logo
+    cabecalho_logo()
+    
+    _, centro, _ = st.columns([1, 4, 1])
+    
+    with centro:
+        st.markdown("<h2 style='text-align: center; margin-bottom: 30px;'>Acessar Sistema</h2>", unsafe_allow_html=True)
+        
+        # Container do formulário
+        with st.container():
+            email = st.text_input("E-mail Corporativo", 
+                                 placeholder="exemplo@clro.com.br", 
+                                 key="input_login_email")
+            
+            senha = st.text_input("Senha", 
+                                 type="password", 
+                                 placeholder="Digite sua senha",
+                                 key="input_login_senha")
+            
+            st.markdown("<br>", unsafe_allow_html=True) # Espaçamento
+            
+            # Botão de entrar com destaque (Primary)
+            if st.button("ENTRAR NO SISTEMA", type="primary", key="btn_executar_login", use_container_width=True):
+                if not email or not senha:
+                    st.warning("⚠️ Preencha e-mail e senha para continuar.")
+                else:
+                    user = autenticar_usuario(email, senha)
+                    if user:
+                        st.session_state.logado = True
+                        st.session_state.user = user.get("email", email)
+                        st.session_state.perfil = user.get("perfil", "vendedor")
+                        st.session_state.nome = user.get("nome", "Usuário")
+                        st.session_state.tela = "Radar" # Mudando para a tela principal
+                        st.rerun()
+                    else:
+                        st.error("❌ Credenciais incorretas. Verifique e tente novamente.")
 
-    if user:
-        st.session_state.logado = True
-        st.session_state.user = user["email"]
-        st.session_state.perfil = user["perfil"]
-        st.session_state.nome = user["nome"]
-        st.session_state.tela = "Consulta"
-        st.rerun()
-    else:
-        st.error("❌ E-mail ou senha inválidos")
+        # Rodapé com ações secundárias
+        st.divider()
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("📝 Criar nova conta", key="btn_navegar_cadastro", use_container_width=True):
+                st.session_state.tela = "Cadastro"
+                st.rerun()
+        with c2:
+            # Estilo link para esqueci a senha
+            if st.button("🔑 Recuperar senha", key="btn_navegar_recuperar", use_container_width=True):
+                st.session_state.tela = "Recuperar"
+                st.rerun()
