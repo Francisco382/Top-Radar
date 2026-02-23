@@ -1,0 +1,48 @@
+def verificar_notificacoes_24h():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    agora = datetime.now()
+    limite = agora + timedelta(hours=24)
+
+    cursor.execute("SELECT * FROM agendamentos WHERE notificado_24h = 0")
+    agendamentos = cursor.fetchall()
+
+    for ag in agendamentos:
+        try:
+            data_visita = datetime.strptime(
+                ag["data_visita"], "%Y-%m-%d %H:%M:%S")
+
+            if agora <= data_visita <= limite:
+
+                assunto = "🔔 Lembrete de Visita - Próximas 24h"
+                mensagem = f"""
+Olá {ag['vendedor']},
+
+Você tem uma visita agendada:
+
+Cliente: {ag['cliente']}
+Data: {data_visita.strftime('%d/%m/%Y %H:%M')}
+Local: {ag['local_visita']}
+
+Prepare-se!
+"""
+
+                enviar_notificacao(
+                    ag["email_vendedor"],
+                    assunto,
+                    mensagem
+                )
+
+                # marcar como notificado
+                cursor.execute("""
+                    UPDATE agendamentos
+                    SET notificado_24h = 1
+                    WHERE id = ?
+                """, (ag["id"],))
+
+        except Exception as e:
+            print("Erro verificação:", e)
+
+    conn.commit()
+    conn.close()
